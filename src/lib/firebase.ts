@@ -23,43 +23,124 @@ import {
   onSnapshot, 
   serverTimestamp 
 } from 'firebase/firestore';
+import defaultFirebaseConfig from '../../firebase-applet-config.json';
 import { UserProfile, ApplicationRecord } from '../types';
 import { INITIAL_USER_PROFILE } from '../data/defaultProfile';
 import { INITIAL_SAMPLE_APPLICATIONS } from '../data/sampleJobs';
 
+// Strict validators for Firebase configuration fields
+export function isValidApiKey(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  // Valid Google API keys start with AIzaSy and are at least 35 characters long
+  return trimmed.startsWith('AIzaSy') && trimmed.length >= 35 && !trimmed.includes('REPLACE_WITH');
+}
+
+export function isValidProjectId(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  // Google Cloud Project IDs: 6-30 lowercase characters, digits, hyphens
+  return /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(trimmed) && !trimmed.includes('your-');
+}
+
+export function isValidAppId(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  // Firebase Web App ID format: 1:<project-number>:web:<app-id>
+  return /^1:\d+:web:[a-f0-9]+$/i.test(trimmed);
+}
+
+export function isValidAuthDomain(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  return trimmed.includes('.firebaseapp.com') && !trimmed.includes('your-');
+}
+
+export function isValidStorageBucket(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  return (trimmed.includes('.firebasestorage.app') || trimmed.includes('.appspot.com')) && !trimmed.includes('your-');
+}
+
+export function isValidMessagingSenderId(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  return /^\d{6,20}$/.test(trimmed);
+}
+
+// Support both environment variables (VITE_FIREBASE_*) and fallback to firebase-applet-config.json
+const envProjectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+const envAppId = import.meta.env.VITE_FIREBASE_APP_ID;
+const envApiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+const envAuthDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
+const envDatabaseId = import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID;
+const envStorageBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET;
+const envMessagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
+const envMeasurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID;
+const envOAuthClientId = import.meta.env.VITE_FIREBASE_OAUTH_CLIENT_ID;
+const envRecaptchaSiteKey = import.meta.env.VITE_FIREBASE_RECAPTCHA_SITE_KEY;
+
+// Prefer authentic, valid Firebase credentials from firebase-applet-config.json or validated environment variables
+const apiKey = isValidApiKey(defaultFirebaseConfig.apiKey)
+  ? defaultFirebaseConfig.apiKey
+  : (isValidApiKey(envApiKey) ? envApiKey : '');
+
+const projectId = isValidProjectId(defaultFirebaseConfig.projectId)
+  ? defaultFirebaseConfig.projectId
+  : (isValidProjectId(envProjectId) ? envProjectId : 'gen-lang-client-0103599345');
+
+const appId = isValidAppId(defaultFirebaseConfig.appId)
+  ? defaultFirebaseConfig.appId
+  : (isValidAppId(envAppId) ? envAppId : '');
+
+const authDomain = isValidAuthDomain(defaultFirebaseConfig.authDomain)
+  ? defaultFirebaseConfig.authDomain
+  : (isValidAuthDomain(envAuthDomain) ? envAuthDomain : `${projectId}.firebaseapp.com`);
+
+const firestoreDatabaseId = (defaultFirebaseConfig.firestoreDatabaseId && !defaultFirebaseConfig.firestoreDatabaseId.includes('your-') && !defaultFirebaseConfig.firestoreDatabaseId.includes('$'))
+  ? defaultFirebaseConfig.firestoreDatabaseId
+  : (envDatabaseId && !envDatabaseId.includes('your-') && !envDatabaseId.includes('$')
+    ? envDatabaseId
+    : 'ai-studio-49f27ecb-b053-4a8d-98b1-0f9445afb923');
+
+const storageBucket = isValidStorageBucket(defaultFirebaseConfig.storageBucket)
+  ? defaultFirebaseConfig.storageBucket
+  : (isValidStorageBucket(envStorageBucket) ? envStorageBucket : `${projectId}.firebasestorage.app`);
+
+const messagingSenderId = isValidMessagingSenderId(defaultFirebaseConfig.messagingSenderId)
+  ? defaultFirebaseConfig.messagingSenderId
+  : (isValidMessagingSenderId(envMessagingSenderId) ? envMessagingSenderId : '');
+
+const oAuthClientId = (defaultFirebaseConfig.oAuthClientId && !defaultFirebaseConfig.oAuthClientId.includes('your-') && !defaultFirebaseConfig.oAuthClientId.includes('$'))
+  ? defaultFirebaseConfig.oAuthClientId
+  : (envOAuthClientId && !envOAuthClientId.includes('$') ? envOAuthClientId : '');
+
 const firebaseConfig = {
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '',
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? '',
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID ?? '(default)',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? '',
-  oAuthClientId: import.meta.env.VITE_FIREBASE_OAUTH_CLIENT_ID ?? '',
-  recaptchaSiteKey: import.meta.env.VITE_FIREBASE_RECAPTCHA_SITE_KEY ?? ''
+  projectId,
+  appId,
+  apiKey,
+  authDomain,
+  firestoreDatabaseId,
+  storageBucket,
+  messagingSenderId,
+  measurementId: defaultFirebaseConfig.measurementId || envMeasurementId || '',
+  oAuthClientId,
+  recaptchaSiteKey: defaultFirebaseConfig.recaptchaSiteKey || envRecaptchaSiteKey || ''
 };
 
-const requiredFirebaseConfigKeys = [
-  'projectId',
-  'appId',
-  'apiKey',
-  'authDomain',
-  'storageBucket',
-  'messagingSenderId'
-] as const;
-
-const missingFirebaseConfigKeys = requiredFirebaseConfigKeys.filter(
-  (key) => !firebaseConfig[key]
+export const isFirebaseConfigured: boolean = Boolean(
+  isValidProjectId(firebaseConfig.projectId) &&
+  isValidApiKey(firebaseConfig.apiKey) &&
+  isValidAppId(firebaseConfig.appId)
 );
 
-if (missingFirebaseConfigKeys.length > 0) {
-  throw new Error(
-    `Missing Firebase configuration values: ${missingFirebaseConfigKeys.join(', ')}. Add them to your .env file or AI Studio secrets.`
+if (!isFirebaseConfigured) {
+  console.warn(
+    'Firebase is running with placeholder or unconfigured credentials. Local storage fallback will be active.'
   );
 }
 
-// Initialize Firebase App singleton
+// Initialize Firebase App singleton safely
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 // Initialize Firebase Auth

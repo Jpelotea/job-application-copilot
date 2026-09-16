@@ -19,19 +19,19 @@ export async function checkServerHealth(): Promise<{ status: string; hasGeminiKe
 }
 
 /**
- * Ensures user has an active Firebase Auth session (signing in anonymously if needed)
- * and retrieves a valid JWT ID Token for secure backend API calls.
+ * Retrieves a valid Firebase JWT ID Token if the user is authenticated,
+ * and gracefully returns empty headers for guest/unauthenticated sessions.
  */
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    let user = auth.currentUser;
-    if (!user) {
-      try {
-        user = await loginAsGuest();
-      } catch (err) {
-        console.warn('Could not establish guest auth session:', err);
-      }
+    if (typeof auth.authStateReady === 'function') {
+      // Fast wait for auth state hydration from storage
+      await Promise.race([
+        auth.authStateReady(),
+        new Promise((resolve) => setTimeout(resolve, 500))
+      ]);
     }
+    const user = auth.currentUser;
     if (user) {
       const token = await user.getIdToken();
       return { Authorization: `Bearer ${token}` };

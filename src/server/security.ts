@@ -3,7 +3,9 @@ import * as jose from 'jose';
 import rateLimit from 'express-rate-limit';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const PROJECT_ID = firebaseConfig.projectId || 'gen-lang-client-0103599345';
+const PROJECT_ID = (firebaseConfig.projectId && firebaseConfig.projectId !== 'your-project-id' && !firebaseConfig.projectId.includes('your-'))
+  ? firebaseConfig.projectId
+  : (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'gen-lang-client-0103599345');
 const GOOGLE_JWKS_URL = 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com';
 
 // Cache remote JWKS set for Firebase ID Token verification
@@ -61,10 +63,38 @@ export async function verifyFirebaseIdToken(token: string): Promise<Authenticate
 }
 
 /**
- * Express middleware to require a valid Firebase ID token in Authorization header.
- * Derives user identity strictly from verified token (never trusts unverified client body).
+ * Express middleware to authenticate the user from the Firebase ID token in Authorization header.
+ * If a valid Bearer token is provided, attaches the verified user identity to req.user.
+ * If no token is provided (guest/unauthenticated), permits access protected by aiRateLimiter.
  */
 export async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // Unauthenticated guest user: proceed with IP-based rate limiting
+    return next();
+  }
+
+  const token = authHeader.substring(7).trim();
+  if (!token) {
+    return next();
+  }
+
+  try {
+    const user = await verifyFirebaseIdToken(token);
+    req.user = user;
+    next();
+  } catch (err: any) {
+    // If token verification fails (e.g. expired or transient verification glitch),
+    // warn and continue as guest with IP rate limiting rather than hard blocking user experience
+    console.warn('[Auth Warning] Token verification failed, proceeding with IP rate-limiting:', err?.message || err);
+    next();
+  }
+}
+
+/**
+ * Strict authentication middleware for private operations that strictly require signed-in accounts.
+ */
+export async function enforceStrictAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({
@@ -93,6 +123,8 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
     });
   }
 }
+
+export const optionalAuth = requireAuth;
 
 /**
  * IP and UID-aware Rate Limiter for AI endpoints

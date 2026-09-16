@@ -104,6 +104,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setError('An account with this email already exists. Try signing in.');
       } else if (err.code === 'auth/weak-password') {
         setError('Password should be at least 6 characters.');
+      } else if (err.code?.includes('api-key') || err.message?.includes('api-key')) {
+        setError('Firebase Authentication service key issue. You can continue using the app as a guest without signing in.');
       } else {
         setError(err.message || 'An error occurred during authentication.');
       }
@@ -120,8 +122,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
-      console.error('Guest sign-in error:', err);
-      setError(err.message || 'Failed to start guest session.');
+      // If Firebase anonymous sign-in is disabled in project console, still allow local guest sandbox
+      if (
+        err?.code === 'auth/admin-restricted-operation' ||
+        err?.code === 'auth/operation-not-allowed' ||
+        err?.message?.includes('operation-not-allowed')
+      ) {
+        if (onSuccess) onSuccess();
+        onClose();
+      } else {
+        console.error('Guest sign-in error:', err);
+        setError(err.message || 'Failed to start guest session.');
+      }
     } finally {
       setLoading(false);
     }

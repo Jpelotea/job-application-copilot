@@ -14,7 +14,8 @@ import {
   Mail, 
   ChevronRight,
   BookOpen,
-  CalendarDays
+  CalendarDays,
+  AlertCircle
 } from 'lucide-react';
 import { 
   ApplicationRecord, 
@@ -52,6 +53,7 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
   // Prep Plan State
   const [prepPlan, setPrepPlan] = useState<InterviewPrepPlan | null>(null);
   const [isGeneratingPrep, setIsGeneratingPrep] = useState(false);
+  const [prepError, setPrepError] = useState<string | null>(null);
 
   // Follow Up Draft State
   const [followUpStage, setFollowUpStage] = useState<string>('Post-Interview Thank You');
@@ -59,6 +61,7 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
   const [customNotes, setCustomNotes] = useState('');
   const [followUpDraft, setFollowUpDraft] = useState<FollowUpDraft | null>(null);
   const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Current Target Job
@@ -72,6 +75,8 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
     } else if (!currentApp) {
       setPrepPlan(null);
     }
+    setPrepError(null);
+    setDraftError(null);
   }, [selectedAppId, currentApp]);
 
   const handleSelectAppFromCalendar = (appId: string) => {
@@ -97,6 +102,7 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
   const handleGeneratePrep = async () => {
     if (!currentJob) return;
     setIsGeneratingPrep(true);
+    setPrepError(null);
     try {
       const plan = await generateInterviewPrep(
         currentJob.description,
@@ -113,8 +119,9 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
           updatedAt: new Date().toISOString()
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to generate interview prep:', err);
+      setPrepError(err?.message || 'Failed to generate interview prep. Please try again.');
     } finally {
       setIsGeneratingPrep(false);
     }
@@ -124,6 +131,7 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
   const handleGenerateFollowUp = async () => {
     if (!currentJob) return;
     setIsGeneratingDraft(true);
+    setDraftError(null);
     try {
       const draft = await generateFollowUpDraft(
         followUpStage,
@@ -134,8 +142,9 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
         customNotes
       );
       setFollowUpDraft(draft);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to generate follow-up draft:', err);
+      setDraftError(err?.message || 'Failed to generate follow-up draft. Please try again.');
     } finally {
       setIsGeneratingDraft(false);
     }
@@ -226,6 +235,23 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
                 )}
               </button>
             </div>
+
+            {prepError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="font-semibold">Unable to generate interview prep</p>
+                  <p className="text-rose-700 leading-relaxed">{prepError}</p>
+                  <button
+                    onClick={handleGeneratePrep}
+                    className="mt-1 px-3 py-1 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    <span>Try Again</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {!prepPlan && !isGeneratingPrep && (
               <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl space-y-3">
@@ -429,6 +455,23 @@ export const InterviewStudioView: React.FC<InterviewStudioViewProps> = ({
                 )}
               </button>
             </div>
+
+            {draftError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="font-semibold">Unable to generate follow-up draft</p>
+                  <p className="text-rose-700 leading-relaxed">{draftError}</p>
+                  <button
+                    onClick={handleGenerateFollowUp}
+                    className="mt-1 px-3 py-1 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <RotateCw className="w-3 h-3" />
+                    <span>Try Again</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Generated Email View */}
             {followUpDraft && (
