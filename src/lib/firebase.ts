@@ -23,10 +23,41 @@ import {
   onSnapshot, 
   serverTimestamp 
 } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
 import { UserProfile, ApplicationRecord } from '../types';
 import { INITIAL_USER_PROFILE } from '../data/defaultProfile';
 import { INITIAL_SAMPLE_APPLICATIONS } from '../data/sampleJobs';
+
+const firebaseConfig = {
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? '',
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID ?? '(default)',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? '',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? '',
+  oAuthClientId: import.meta.env.VITE_FIREBASE_OAUTH_CLIENT_ID ?? '',
+  recaptchaSiteKey: import.meta.env.VITE_FIREBASE_RECAPTCHA_SITE_KEY ?? ''
+};
+
+const requiredFirebaseConfigKeys = [
+  'projectId',
+  'appId',
+  'apiKey',
+  'authDomain',
+  'storageBucket',
+  'messagingSenderId'
+] as const;
+
+const missingFirebaseConfigKeys = requiredFirebaseConfigKeys.filter(
+  (key) => !firebaseConfig[key]
+);
+
+if (missingFirebaseConfigKeys.length > 0) {
+  throw new Error(
+    `Missing Firebase configuration values: ${missingFirebaseConfigKeys.join(', ')}. Add them to your .env file or AI Studio secrets.`
+  );
+}
 
 // Initialize Firebase App singleton
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
